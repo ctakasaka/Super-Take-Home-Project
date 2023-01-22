@@ -8,6 +8,33 @@
 # (I believe this to be more standard than using Python's specific regexp-like syntax)
 import re
 
+def separate_cols(columns):
+    return columns.split(';')
+
+def flightcode_to_int(flightcode):
+    return int(float(flightcode))
+
+def clean_airline_code(airline_code):
+
+    # remove any non-alphanumeric characters, leaving spaces
+    clean_airline_code = re.sub("[^a-zA-Z\s]", "", airline_code)
+
+    # also, ensure any trailing or leading spaces are removed
+    clean_airline_code = re.sub("^\s+", "", clean_airline_code)
+    clean_airline_code = re.sub("\s$", "", clean_airline_code)
+
+    return clean_airline_code
+
+def stringify_row(first_part, second_part):
+
+    stringified_row = ";".join([str(attr) for attr in first_part]) + ";"
+    stringified_row += ";".join(second_part)
+
+    return stringified_row
+
+def stringify_headers(headers):
+    return ";".join(headers) + '\\n'
+
 def clean_stringified_table(table):
 
     cleaned_rows = []
@@ -15,7 +42,7 @@ def clean_stringified_table(table):
     rows = table.split("\n")
 
     # isolate the headers from the data, and further split them into individuals
-    headers = rows[0].split(";")
+    headers = separate_cols(rows[0])
     # now, let's fix that To_From header!
     fixed_headers = headers[0:-1] + headers[-1].split("_")
 
@@ -24,7 +51,7 @@ def clean_stringified_table(table):
     for i in range(1, len(rows)):    # ignore the first "row" as it is the headers
 
         # separating out the attributes of each row
-        attrs = rows[i].split(";")
+        attrs = separate_cols(rows[i])
 
         # if we find an empty / corrupted row, we have reached the end of the table
         if len(attrs) == len(headers):
@@ -37,30 +64,25 @@ def clean_stringified_table(table):
                 prev_flightcode = attrs[2]
             else:
                 # need to first convert the string to a float, then to an integer
-                prev_flightcode = int(float(flightcode))
+                prev_flightcode = flightcode_to_int(flightcode)
                 # we want to ensure the flightcode column contains only integer values
                 attrs[2] = prev_flightcode
 
-
-            # we also want to split the To_From column
+            # we want to split the To_From column
             to_from = attrs[-1].split("_")
             # also, capital case these columns
             to_from = [place.title() for place in to_from]
 
-            # now we want to clean the Airline Code column
-            attrs[0] = re.sub("[^a-zA-Z\s]", "", attrs[0])
-            # also, ensure any trailing or leading spaces are removed
-            attrs[0] = re.sub("^\s+", "", attrs[0])
-            attrs[0] = re.sub("\s$", "", attrs[0])
+            # now, clean the airline code
+            attrs[0] = clean_airline_code(attrs[0])
 
             # finally, rebuild the row to be stringified again
-            clean_row += ";".join([str(attr) for attr in attrs[0:-1]]) + ";"
-            clean_row += ";".join(to_from)
+            stringified_row = stringify_row(attrs[0:-1], to_from)
 
-            cleaned_rows.append(clean_row)
+            cleaned_rows.append(stringified_row)
 
     # complete the re-stringification, adding line breaks between rows
-    restringified_headers = ";".join(fixed_headers) + '\\n'
+    restringified_headers = stringify_headers(fixed_headers)
     
     # also, make sure to include the final newline terminator (not the scary robot kind)
     return (restringified_headers + '\\n'.join(cleaned_rows) + '\\n')
